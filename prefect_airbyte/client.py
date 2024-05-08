@@ -1,4 +1,5 @@
 """Client for interacting with Airbyte instance"""
+
 import logging
 from typing import Any, Dict, Tuple
 from warnings import warn
@@ -146,6 +147,38 @@ class AirbyteClient:
 
         """
         get_connection_url = self.airbyte_base_url + "/connections/sync/"
+
+        try:
+            response = await self._client.post(
+                get_connection_url, json={"connectionId": connection_id}
+            )
+            response.raise_for_status()
+            job = response.json()["job"]
+            job_id = job["id"]
+            job_created_at = job["createdAt"]
+            return job_id, job_created_at
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {connection_id} not found, please double "
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
+    async def trigger_reset_connection(self, connection_id: str) -> Tuple[str, str]:
+        """
+        Triggers a reset of the airbyte connection.
+
+        Args:
+            connection_id: ID of connection to sync.
+
+        Returns:
+            job_id: ID of the job that was triggered.
+            created_at: Datetime string of when the job was created.
+
+        """
+        get_connection_url = self.airbyte_base_url + "/connections/reset/"
 
         try:
             response = await self._client.post(
