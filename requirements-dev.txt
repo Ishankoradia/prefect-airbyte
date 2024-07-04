@@ -14,3 +14,4 @@ interrogate
 coverage
 respx
 pillow
+tenacity==8.2.3

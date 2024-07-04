@@ -5,6 +5,12 @@ from typing import Any, Dict, Tuple
 from warnings import warn
 
 import httpx
+from tenacity import (
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+    retry,
+)
 
 from prefect_airbyte import exceptions as err
 
@@ -237,6 +243,13 @@ class AirbyteClient:
                 raise err.JobNotFoundException(f"Job {job_id} not found.") from e
             raise err.AirbyteServerNotHealthyException() from e
 
+    @retry(
+        retry=retry_if_exception_type(
+            (httpx.HTTPStatusError, err.AirbyteServerNotHealthyException, Exception)
+        ),
+        wait=wait_exponential(multiplier=5, max=60),
+        stop=stop_after_attempt(3),
+    )
     async def get_job_info(self, job_id: str) -> Dict[str, Any]:
         """
         Gets the full API response for a given Airbyte Job ID.
@@ -258,6 +271,9 @@ class AirbyteClient:
             if e.response.status_code == 404:
                 raise err.JobNotFoundException(f"Job {job_id} not found.") from e
             raise err.AirbyteServerNotHealthyException() from e
+        except Exception as e:
+            self.logger.error(e)
+            raise Exception("Something went wrong while fetching job info") from e
 
     async def create_client(self) -> httpx.AsyncClient:
         """Convencience method to create a new httpx.AsyncClient.
