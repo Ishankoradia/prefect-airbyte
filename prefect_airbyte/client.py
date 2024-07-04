@@ -247,8 +247,8 @@ class AirbyteClient:
         retry=retry_if_exception_type(
             (httpx.HTTPStatusError, err.AirbyteServerNotHealthyException, Exception)
         ),
-        wait=wait_exponential(multiplier=5, max=60),
-        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, max=60),
+        stop=stop_after_attempt(5),
     )
     async def get_job_info(self, job_id: str) -> Dict[str, Any]:
         """
