@@ -10,9 +10,18 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
     retry,
+    RetryCallState,
 )
 
 from prefect_airbyte import exceptions as err
+
+
+def log_retry_attempt(retry_state: RetryCallState):
+    """Log the retry attempt number"""
+    print(
+        "Retrying API call: attempt %s",
+        retry_state.attempt_number,
+    )
 
 
 class AirbyteClient:
@@ -249,6 +258,7 @@ class AirbyteClient:
         ),
         wait=wait_exponential(multiplier=2, max=60),
         stop=stop_after_attempt(5),
+        before=log_retry_attempt,
     )
     async def get_job_info(self, job_id: str) -> Dict[str, Any]:
         """
@@ -260,7 +270,8 @@ class AirbyteClient:
         Returns:
             Dict of the full API response for the given job ID.
         """
-        get_connection_url = self.airbyte_base_url + "/jobs/get/"
+        get_connection_url = self.airbyte_base_url + "/jobs/get_without_logs/"
+        self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
         try:
             response = await self._client.post(get_connection_url, json={"id": job_id})
             response.raise_for_status()
@@ -268,6 +279,7 @@ class AirbyteClient:
             return response.json()
 
         except httpx.HTTPStatusError as e:
+            self.logger.error(e)
             if e.response.status_code == 404:
                 raise err.JobNotFoundException(f"Job {job_id} not found.") from e
             raise err.AirbyteServerNotHealthyException() from e
