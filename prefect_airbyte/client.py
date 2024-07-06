@@ -5,8 +5,23 @@ from typing import Any, Dict, Tuple
 from warnings import warn
 
 import httpx
+from tenacity import (
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+    retry,
+    RetryCallState,
+)
 
 from prefect_airbyte import exceptions as err
+
+
+def log_retry_attempt(retry_state: RetryCallState):
+    """Log the retry attempt number"""
+    logging.info(
+        "Retrying API call: attempt %s",
+        retry_state.attempt_number,
+    )
 
 
 class AirbyteClient:
@@ -237,6 +252,14 @@ class AirbyteClient:
                 raise err.JobNotFoundException(f"Job {job_id} not found.") from e
             raise err.AirbyteServerNotHealthyException() from e
 
+    @retry(
+        retry=retry_if_exception_type(
+            (httpx.HTTPStatusError, err.AirbyteServerNotHealthyException, Exception)
+        ),
+        wait=wait_exponential(multiplier=2, max=60),
+        stop=stop_after_attempt(5),
+        before=log_retry_attempt,
+    )
     async def get_job_info(self, job_id: str) -> Dict[str, Any]:
         """
         Gets the full API response for a given Airbyte Job ID.
@@ -247,7 +270,8 @@ class AirbyteClient:
         Returns:
             Dict of the full API response for the given job ID.
         """
-        get_connection_url = self.airbyte_base_url + "/jobs/get/"
+        get_connection_url = self.airbyte_base_url + "/jobs/get_without_logs/"
+        self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
         try:
             response = await self._client.post(get_connection_url, json={"id": job_id})
             response.raise_for_status()
@@ -255,9 +279,13 @@ class AirbyteClient:
             return response.json()
 
         except httpx.HTTPStatusError as e:
+            self.logger.error(e)
             if e.response.status_code == 404:
                 raise err.JobNotFoundException(f"Job {job_id} not found.") from e
             raise err.AirbyteServerNotHealthyException() from e
+        except Exception as e:
+            self.logger.error(e)
+            raise Exception("Something went wrong while fetching job info") from e
 
     async def create_client(self) -> httpx.AsyncClient:
         """Convencience method to create a new httpx.AsyncClient.

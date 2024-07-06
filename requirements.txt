@@ -1,1 +1,2 @@
 prefect>=2.13.5
+tenacity==8.2.3

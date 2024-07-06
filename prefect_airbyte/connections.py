@@ -234,6 +234,8 @@ class AirbyteSync(JobRun):
             job_status = JOB_STATUS_PENDING
 
             while job_status not in terminal_job_statuses:
+                self.logger.info(f"Polling airbyte job {self.job_id}.")
+
                 job_info = await airbyte_client.get_job_info(self.job_id)
 
                 job_status = job_info["job"]["status"]
