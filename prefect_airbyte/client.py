@@ -18,7 +18,7 @@ from prefect_airbyte import exceptions as err
 
 def log_retry_attempt(retry_state: RetryCallState):
     """Log the retry attempt number"""
-    print(
+    logging.info(
         "Retrying API call: attempt %s",
         retry_state.attempt_number,
     )
