@@ -483,7 +483,7 @@ class AirbyteConnection(JobBlock):
                     job_id,
                     _,
                 ) = await airbyte_client.trigger_reset_streams_for_connection(
-                    str_connection_id, streams
+                    str_connection_id, [dict(stream) for stream in streams]
                 )
 
                 return AirbyteSync(

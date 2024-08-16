@@ -14,7 +14,6 @@ from tenacity import (
 )
 
 from prefect_airbyte import exceptions as err
-from prefect_airbyte.connections import ResetStream
 
 
 def log_retry_attempt(retry_state: RetryCallState):
@@ -215,7 +214,7 @@ class AirbyteClient:
             raise err.AirbyteServerNotHealthyException() from e
 
     async def trigger_reset_streams_for_connection(
-        self, connection_id: str, streams: list[ResetStream]
+        self, connection_id: str, streams: list[dict]
     ) -> Tuple[str, str]:
         """
         Triggers a reset of the airbyte connection for the streams provided.
@@ -235,7 +234,7 @@ class AirbyteClient:
                 get_connection_url,
                 json={
                     "connectionId": connection_id,
-                    "streams": [dict(stream) for stream in streams],
+                    "streams": streams,
                 },
             )
             response.raise_for_status()
