@@ -14,7 +14,7 @@ from tenacity import (
 )
 
 from prefect_airbyte import exceptions as err
-from connections import ResetStream
+from prefect_airbyte.connections import ResetStream
 
 
 def log_retry_attempt(retry_state: RetryCallState):
