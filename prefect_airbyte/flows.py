@@ -2,7 +2,11 @@
 
 from prefect import flow, task
 
-from prefect_airbyte.connections import AirbyteConnection, AirbyteSyncResult
+from prefect_airbyte.connections import (
+    AirbyteConnection,
+    AirbyteSyncResult,
+    ResetStream,
+)
 
 
 @flow
@@ -111,6 +115,58 @@ async def reset_connection(
     # see [this issue](https://github.com/PrefectHQ/prefect/issues/7551)
 
     airbyte_sync = await task(airbyte_connection.reset.aio)(airbyte_connection)
+
+    await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
+
+    return await task(airbyte_sync.fetch_result.aio)(airbyte_sync)
+
+
+@flow
+async def reset_connection_streams(
+    airbyte_connection: AirbyteConnection, streams: list[ResetStream]
+) -> None:
+    """A flow that triggers a reset for the defined streams of an Airbyte connection and waits for it to complete.
+
+    Args:
+        airbyte_connection: `AirbyteConnection` representing the Airbyte connection.
+        streams: list[ResetStream] representing the streams that need to be reset
+
+
+    Returns:
+        None
+
+    Example:
+        Define a flow that runs an Airbyte connection sync:
+        ```python
+        from prefect import flow
+        from prefect_airbyte.server import AirbyteServer
+        from prefect_airbyte.connections import AirbyteConnection
+        from prefect_airbyte.flows import reset_connection_streams
+
+        airbyte_server = AirbyteServer(
+            server_host="localhost",
+            server_port=8000
+        )
+
+        connection = AirbyteConnection(
+            airbyte_server=airbyte_server,
+            connection_id="<YOUR-AIRBYTE-CONNECTION-UUID>"
+        )
+
+        @flow
+        def airbyte_reset_connection_streams_flow():
+            # do some things
+
+            airbyte_sync_result = reset_connection_streams(
+                airbyte_connection=connection, streams=streams
+            )
+
+        ```
+    """
+
+    airbyte_sync = await task(airbyte_connection.reset_streams.aio)(
+        airbyte_connection, streams
+    )
 
     await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
 
