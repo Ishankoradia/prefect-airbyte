@@ -325,6 +325,67 @@ class AirbyteClient:
             self.logger.error(e)
             raise Exception("Something went wrong while fetching job info") from e
 
+    async def get_webbackend_connection(
+        self, connection_id: str, refresh_catalog: bool
+    ) -> Dict[str, Any]:
+        """
+        Get connection with catalog diff
+        """
+        get_connection_url = self.airbyte_base_url + "/web_backend/connections/get"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "connectionId": connection_id,
+                    "withRefreshedCatalog": refresh_catalog,
+                },
+            )
+            response.raise_for_status()
+            self.logger(
+                "Fetched webbackend connection info for connection ID: %s",
+                connection_id,
+            )
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {connection_id} not found, please double "
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
+    async def update_webbackend_connection(
+        self, payload: Dict[str, Any], skip_reset: bool
+    ) -> Dict[str, Any]:
+        """
+        Patch style update of the connection
+        connectionId is in the payload
+        """
+        get_connection_url = self.airbyte_base_url + "/web_backend/connections/update"
+
+        try:
+            payload["skipReset"] = skip_reset
+            response = await self._client.post(
+                get_connection_url,
+                json=payload,
+            )
+            response.raise_for_status()
+            self.logger(
+                "Updated connection ; ID: %s",
+                payload["connectionId"],
+            )
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {payload['connectionId']} not found, please double"
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
     async def create_client(self) -> httpx.AsyncClient:
         """Convencience method to create a new httpx.AsyncClient.
 
