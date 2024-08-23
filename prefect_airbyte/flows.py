@@ -258,7 +258,7 @@ async def update_connection_schema(
         reset_job: AirbyteSync = await task(airbyte_connection.reset_streams.aio)(
             airbyte_connection,
             streams=[
-                ResetStream(stream_name=stream_name) for stream_name in affected_streams
+                ResetStream(streamName=stream_name) for stream_name in affected_streams
             ],
         )
 
