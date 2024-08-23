@@ -177,7 +177,7 @@ async def reset_connection_streams(
 
 
 @flow
-async def refresh_schema(
+async def update_connection_schema(
     airbyte_connection: AirbyteConnection, catalog_diff: dict
 ) -> None:
     """
@@ -252,24 +252,23 @@ async def refresh_schema(
         airbyte_connection, catalog_diff
     )
 
-    if len(affected_streams) > 0:
+    # if len(affected_streams) > 0:
 
-        # reset the affected streams
-        reset_job: AirbyteSync = await task(airbyte_connection.reset_streams.aio)(
-            airbyte_connection,
-            streams=[
-                ResetStream(stream_name=stream_name)
-                for stream_name in list(set(affected_streams))
-            ],
-        )
+    #     # reset the affected streams
+    #     reset_job: AirbyteSync = await task(airbyte_connection.reset_streams.aio)(
+    #         airbyte_connection,
+    #         streams=[
+    #             ResetStream(stream_name=stream_name) for stream_name in affected_streams
+    #         ],
+    #     )
 
-        await task(reset_job.wait_for_completion.aio)(reset_job)
+    #     await task(reset_job.wait_for_completion.aio)(reset_job)
 
-        await task(reset_job.fetch_result.aio)(reset_job)
+    #     await task(reset_job.fetch_result.aio)(reset_job)
 
-        # run a sync on the connection
-        airbyte_sync = await task(airbyte_connection.trigger.aio)(airbyte_connection)
+    #     # run a sync on the connection
+    #     airbyte_sync = await task(airbyte_connection.trigger.aio)(airbyte_connection)
 
-        await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
+    #     await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
 
-        await task(airbyte_sync.fetch_result.aio)(airbyte_sync)
+    #     await task(airbyte_sync.fetch_result.aio)(airbyte_sync)

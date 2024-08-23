@@ -523,7 +523,7 @@ class AirbyteConnection(JobBlock):
         ) as airbyte_client:
 
             self.logger.info(
-                f"Triggering reset for connection {self.connection_id}, "
+                f"Updating catalog for connection {self.connection_id}, "
                 f"in workspace at {self.airbyte_server.base_url!r}"
             )
 
@@ -556,11 +556,9 @@ class AirbyteConnection(JobBlock):
                 ]
 
                 # update the connection with the new catalog
-                await airbyte_client.update_webbackend_connection(
-                    conn, skip_reset=True
-                )
+                await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
 
-                self.logger.info("Updated teh connection with the new catalog")
+                self.logger.info("Updated the connection with the new catalog")
 
                 return list(set(affected_streams))
 
