@@ -20,6 +20,7 @@ from typing_extensions import Literal
 
 from prefect_airbyte import exceptions as err
 from prefect_airbyte.server import AirbyteServer
+from prefect_airbyte.utils import sort_dict
 
 # Connection statuses
 CONNECTION_STATUS_ACTIVE = "active"
@@ -490,6 +491,82 @@ class AirbyteConnection(JobBlock):
                     airbyte_connection=self,
                     job_id=job_id,
                 )
+
+            elif connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive"
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )
+
+    @sync_compatible
+    async def update_connection_catalog(
+        self, catalog_diff: Dict[str, Any]
+    ) -> list[str]:
+        """Updated the connection with new catalog if the catalog_diff hasn't evolved
+
+        Returns:
+            The list of affected streams
+
+        Raises:
+            AirbyteConnectionInactiveException: If the connection is inactive.
+            AirbyteConnectionDeprecatedException: If the connection is deprecated.
+        """
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Triggering reset for connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_ACTIVE:
+                affected_streams = []
+                # fetch the current catalog diff
+                async with self.airbyte_server.get_client(
+                    logger=self.logger,
+                    timeout=self.timeout,
+                ) as airbyte_client:
+                    self.logger.info("Fetching the connection with refresh catalog")
+                    conn = await airbyte_client.get_webbackend_connection(
+                        self.connection_id, refresh_catalog=True
+                    )
+
+                    # compare the diff fetched above with the diff passed in the function
+                    # if they are different, abort
+                    if sort_dict(conn["catalogDiff"]) != sort_dict(catalog_diff):
+                        raise ValueError(
+                            "The catalog diff provided does not match the current catalog diff. Please run with the latest catalog diff"
+                        )
+                    self.logger.info(
+                        "Validated the catalog diff, it matches the current catalog diff and has not been changed since"
+                    )
+
+                    affected_streams = [
+                        transform["streamDescriptor"]["name"]
+                        for transform in conn["catalogDiff"].get("transforms", [])
+                        if transform.get("streamDescriptor")
+                    ]
+
+                    # update the connection with the new catalog
+                    await airbyte_client.update_webbackend_connection(
+                        conn, skip_reset=True
+                    )
+
+                    self.logger.info("Updated teh connection with the new catalog")
+
+                    return list(set(affected_streams))
 
             elif connection_status == CONNECTION_STATUS_INACTIVE:
                 raise err.AirbyteConnectionInactiveException(

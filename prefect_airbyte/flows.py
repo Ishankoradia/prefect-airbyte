@@ -8,7 +8,6 @@ from prefect_airbyte.connections import (
     AirbyteSync,
     ResetStream,
 )
-from prefect_airbyte.utils import sort_dict
 
 
 @flow
@@ -248,48 +247,29 @@ async def refresh_schema(
 
         ```
     """
-    affected_streams = []
-    # fetch the current catalog diff
-    async with airbyte_connection.airbyte_server.get_client(
-        logger=airbyte_connection.logger,
-        timeout=airbyte_connection.timeout,
-    ) as airbyte_client:
-        airbyte_connection.logger.info("Fetching the connection with refresh catalog")
-        conn = await airbyte_client.get_webbackend_connection(
-            airbyte_connection.connection_id, refresh_catalog=True
-        )
 
-        # compare the diff fetched above with the diff passed in the function
-        # if they are different, abort
-        if sort_dict(conn["catalogDiff"]) != sort_dict(catalog_diff):
-            raise ValueError(
-                "The catalog diff provided does not match the current catalog diff. Please run with the latest catalog diff"
-            )
-        airbyte_connection.logger.info(
-            "Validated the catalog diff, it matches the current catalog diff and has not been changed since"
-        )
-
-        affected_streams = [
-            transform["streamDescriptor"]["name"]
-            for transform in conn["catalogDiff"].get("transforms", [])
-            if transform.get("streamDescriptor")
-        ]
-
-        # update the connection with the new catalog
-        await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
-
-        airbyte_connection.logger.info("Updated teh connection with the new catalog")
+    affected_streams = await task(airbyte_connection.update_connection_catalog.aio)(
+        airbyte_connection, catalog_diff
+    )
 
     if len(affected_streams) > 0:
 
         # reset the affected streams
-        await reset_connection_streams(
-            airbyte_connection=airbyte_connection,
+        reset_job: AirbyteSync = await task(airbyte_connection.reset_streams.aio)(
+            airbyte_connection,
             streams=[
                 ResetStream(stream_name=stream_name)
                 for stream_name in list(set(affected_streams))
             ],
         )
 
+        await task(reset_job.wait_for_completion.aio)(reset_job)
+
+        await task(reset_job.fetch_result.aio)(reset_job)
+
         # run a sync on the connection
-        await run_connection_sync(airbyte_connection=airbyte_connection)
+        airbyte_sync = await task(airbyte_connection.trigger.aio)(airbyte_connection)
+
+        await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
+
+        await task(airbyte_sync.fetch_result.aio)(airbyte_sync)
