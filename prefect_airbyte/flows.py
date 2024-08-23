@@ -254,6 +254,7 @@ async def refresh_schema(
         logger=airbyte_connection.logger,
         timeout=airbyte_connection.timeout,
     ) as airbyte_client:
+        airbyte_connection.logger.info("Fetching the connection with refresh catalog")
         conn = await airbyte_client.get_webbackend_connection(
             airbyte_connection.connection_id, refresh_catalog=True
         )
@@ -264,6 +265,9 @@ async def refresh_schema(
             raise ValueError(
                 "The catalog diff provided does not match the current catalog diff. Please run with the latest catalog diff"
             )
+        airbyte_connection.logger.info(
+            "Validated the catalog diff, it matches the current catalog diff and has not been changed since"
+        )
 
         affected_streams = [
             transform["streamDescriptor"]["name"]
@@ -274,10 +278,12 @@ async def refresh_schema(
         # update the connection with the new catalog
         await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
 
+        airbyte_connection.logger.info("Updated teh connection with the new catalog")
+
     if len(affected_streams) > 0:
 
         # reset the affected streams
-        reset_connection_streams(
+        await reset_connection_streams(
             airbyte_connection=airbyte_connection,
             streams=[
                 ResetStream(stream_name=stream_name)
@@ -286,4 +292,4 @@ async def refresh_schema(
         )
 
         # run a sync on the connection
-        run_connection_sync(airbyte_connection=airbyte_connection)
+        await run_connection_sync(airbyte_connection=airbyte_connection)
