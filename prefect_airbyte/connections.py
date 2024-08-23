@@ -539,21 +539,28 @@ class AirbyteConnection(JobBlock):
                     str_connection_id, refresh_catalog=True
                 )
 
-                # compare the diff fetched above with the diff passed in the function
+                affected_streams = [
+                    transform["streamDescriptor"]["name"]
+                    for transform in conn["catalogDiff"].get("transforms", [])
+                    if transform.get("streamDescriptor")
+                ]
+
+                old_affected_streams = [
+                    transform["streamDescriptor"]["name"]
+                    for transform in catalog_diff.get("transforms", [])
+                    if transform.get("streamDescriptor")
+                ]
+
+                # compare the affected stream from before
+                # we can't truely compare the diff since its an unordered list of transformations with no ids - tried using sort_dict (above)
                 # if they are different, abort
-                if sort_dict(conn["catalogDiff"]) != sort_dict(catalog_diff):
+                if set(affected_streams) != set(old_affected_streams):
                     raise ValueError(
                         "The catalog diff provided does not match the current catalog diff. Please run with the latest catalog diff"
                     )
                 self.logger.info(
                     "Validated the catalog diff, it matches the current catalog diff and has not been changed since"
                 )
-
-                affected_streams = [
-                    transform["streamDescriptor"]["name"]
-                    for transform in conn["catalogDiff"].get("transforms", [])
-                    if transform.get("streamDescriptor")
-                ]
 
                 # update the connection with the new catalog
                 await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
