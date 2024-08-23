@@ -536,7 +536,7 @@ class AirbyteConnection(JobBlock):
                 # fetch the current catalog diff
                 self.logger.info("Fetching the connection with refresh catalog")
                 conn = await airbyte_client.get_webbackend_connection(
-                    self.connection_id, refresh_catalog=True
+                    str_connection_id, refresh_catalog=True
                 )
 
                 # compare the diff fetched above with the diff passed in the function
