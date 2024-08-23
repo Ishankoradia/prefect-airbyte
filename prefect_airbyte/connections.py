@@ -568,6 +568,7 @@ class AirbyteConnection(JobBlock):
                     {
                         "syncCatalog": conn["syncCatalog"],
                         "skipReset": True,
+                        "sourceCatalogId": conn["catalogId"],
                     },
                 )
 
