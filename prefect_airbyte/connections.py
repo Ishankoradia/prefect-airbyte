@@ -563,7 +563,13 @@ class AirbyteConnection(JobBlock):
                 )
 
                 # update the connection with the new catalog
-                await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
+                await airbyte_client.update_webbackend_connection(
+                    str_connection_id,
+                    {
+                        "syncCatalog": conn["syncCatalog"],
+                        "skipReset": True,
+                    },
+                )
 
                 self.logger.info("Updated the connection with the new catalog")
 

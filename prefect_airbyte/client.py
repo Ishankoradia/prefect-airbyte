@@ -357,7 +357,7 @@ class AirbyteClient:
             raise err.AirbyteServerNotHealthyException() from e
 
     async def update_webbackend_connection(
-        self, payload: Dict[str, Any], skip_reset: bool
+        self, connection_id: str, payload: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Patch style update of the connection
@@ -366,7 +366,7 @@ class AirbyteClient:
         get_connection_url = self.airbyte_base_url + "/web_backend/connections/update"
 
         try:
-            payload["skipReset"] = skip_reset
+            payload["connectionId"] = connection_id
             response = await self._client.post(
                 get_connection_url,
                 json=payload,
