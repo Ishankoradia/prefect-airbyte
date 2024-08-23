@@ -254,7 +254,7 @@ async def refresh_schema(
         logger=airbyte_connection.logger,
         timeout=airbyte_connection.timeout,
     ) as airbyte_client:
-        conn = airbyte_client.get_webbackend_connection(
+        conn = await airbyte_client.get_webbackend_connection(
             airbyte_connection.connection_id, refresh_catalog=True
         )
 
@@ -272,7 +272,7 @@ async def refresh_schema(
         ]
 
         # update the connection with the new catalog
-        airbyte_client.update_webbackend_connection(conn, skip_reset=True)
+        await airbyte_client.update_webbackend_connection(conn, skip_reset=True)
 
     if len(affected_streams) > 0:
 
