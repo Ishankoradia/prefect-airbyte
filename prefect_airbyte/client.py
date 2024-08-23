@@ -342,7 +342,7 @@ class AirbyteClient:
                 },
             )
             response.raise_for_status()
-            self.logger(
+            self.logger.info(
                 "Fetched webbackend connection info for connection ID: %s",
                 connection_id,
             )
@@ -372,7 +372,7 @@ class AirbyteClient:
                 json=payload,
             )
             response.raise_for_status()
-            self.logger(
+            self.logger.info(
                 "Updated connection ; ID: %s",
                 payload["connectionId"],
             )
