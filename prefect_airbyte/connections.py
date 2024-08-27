@@ -539,6 +539,10 @@ class AirbyteConnection(JobBlock):
                     str_connection_id, refresh_catalog=True
                 )
 
+                update_conn_with = await airbyte_client.get_webbackend_connection(
+                    str_connection_id, refresh_catalog=False
+                )
+
                 affected_streams = [
                     transform["streamDescriptor"]["name"]
                     for transform in conn["catalogDiff"].get("transforms", [])
@@ -563,13 +567,12 @@ class AirbyteConnection(JobBlock):
                 )
 
                 # update the connection with the new catalog
+                update_conn_with["skipReset"] = True
+                update_conn_with["sourceCatalogId"] = conn["catalogId"]
+                update_conn_with["syncCatalog"] = conn["syncCatalog"]
                 await airbyte_client.update_webbackend_connection(
                     str_connection_id,
-                    {
-                        "syncCatalog": conn["syncCatalog"],
-                        "skipReset": True,
-                        "sourceCatalogId": conn["catalogId"],
-                    },
+                    update_conn_with,
                 )
 
                 self.logger.info("Updated the connection with the new catalog")
