@@ -213,6 +213,44 @@ class AirbyteClient:
 
             raise err.AirbyteServerNotHealthyException() from e
 
+    async def trigger_reset_streams_for_connection(
+        self, connection_id: str, streams: list[dict]
+    ) -> Tuple[str, str]:
+        """
+        Triggers a reset of the airbyte connection for the streams provided.
+
+        Args:
+            connection_id: ID of connection to sync.
+
+        Returns:
+            job_id: ID of the job that was triggered.
+            created_at: Datetime string of when the job was created.
+
+        """
+        get_connection_url = self.airbyte_base_url + "/connections/reset/stream"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "connectionId": connection_id,
+                    "streams": streams,
+                },
+            )
+            response.raise_for_status()
+            job = response.json()["job"]
+            job_id = job["id"]
+            job_created_at = job["createdAt"]
+            return job_id, job_created_at
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {connection_id} not found, please double "
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
     async def get_job_status(self, job_id: str) -> Tuple[str, int, int]:
         """
         Gets the status of an Airbyte connection sync job.
@@ -286,6 +324,67 @@ class AirbyteClient:
         except Exception as e:
             self.logger.error(e)
             raise Exception("Something went wrong while fetching job info") from e
+
+    async def get_webbackend_connection(
+        self, connection_id: str, refresh_catalog: bool
+    ) -> Dict[str, Any]:
+        """
+        Get connection with catalog diff
+        """
+        get_connection_url = self.airbyte_base_url + "/web_backend/connections/get"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "connectionId": connection_id,
+                    "withRefreshedCatalog": refresh_catalog,
+                },
+            )
+            response.raise_for_status()
+            self.logger.info(
+                "Fetched webbackend connection info for connection ID: %s",
+                connection_id,
+            )
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {connection_id} not found, please double "
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
+    async def update_webbackend_connection(
+        self, connection_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Patch style update of the connection
+        connectionId is in the payload
+        """
+        get_connection_url = self.airbyte_base_url + "/web_backend/connections/update"
+
+        try:
+            payload["connectionId"] = connection_id
+            response = await self._client.post(
+                get_connection_url,
+                json=payload,
+            )
+            response.raise_for_status()
+            self.logger.info(
+                "Updated connection ; ID: %s",
+                payload["connectionId"],
+            )
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {payload['connectionId']} not found, please double"
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
 
     async def create_client(self) -> httpx.AsyncClient:
         """Convencience method to create a new httpx.AsyncClient.
