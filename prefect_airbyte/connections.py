@@ -566,6 +566,46 @@ class AirbyteConnection(JobBlock):
                     "Validated the catalog diff, it matches the current catalog diff and has not been changed since"
                 )
 
+                # make sure we filter out the streams that are not selected in the connection
+                # "syncCatalog": {
+                # "streams": [
+                #     {
+                #         "stream": {
+                #             "name": "sheet2",
+                #             "jsonSchema": {
+                #                 "$schema": "http://json-schema.org/draft-07/schema#",
+                #                 "type": "object",
+                #                 "properties": {
+                #                     "Month": {
+                #                         "type": "string"
+                #                     },
+                #                 }
+                #             },
+                #             "supportedSyncModes": [
+                #                 "full_refresh"
+                #             ],
+                #             "defaultCursorField": [],
+                #             "sourceDefinedPrimaryKey": []
+                #         },
+                #         "config": {
+                #             "syncMode": "full_refresh",
+                #             "cursorField": [],
+                #             "destinationSyncMode": "overwrite",
+                #             "primaryKey": [],
+                #             "aliasName": "sheet2",
+                #             "selected": true,
+                #             "fieldSelectionEnabled": false
+                #         }
+                #     },
+                # ]
+                # }
+                streams_selected = [
+                    stream["stream"]["name"]
+                    for stream in conn["syncCatalog"]["streams"]
+                    if stream["config"]["selected"] == True
+                ]
+                affected_streams = set(affected_streams) & set(streams_selected)
+
                 # update the connection with the new catalog
                 update_conn_with["skipReset"] = True
                 update_conn_with["sourceCatalogId"] = conn["catalogId"]
@@ -577,7 +617,7 @@ class AirbyteConnection(JobBlock):
 
                 self.logger.info("Updated the connection with the new catalog")
 
-                return list(set(affected_streams))
+                return list(affected_streams)
 
             elif connection_status == CONNECTION_STATUS_INACTIVE:
                 raise err.AirbyteConnectionInactiveException(
