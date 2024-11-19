@@ -454,6 +454,54 @@ class AirbyteConnection(JobBlock):
                 )
 
     @sync_compatible
+    async def clear(self) -> AirbyteSync:
+        """Trigger a clear of the defined Airbyte connection.
+
+        Returns:
+            An `AirbyteSync` `JobRun` object representing the active clear job.
+
+        Raises:
+            AirbyteConnectionInactiveException: If the connection is inactive.
+            AirbyteConnectionDeprecatedException: If the connection is deprecated.
+        """
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Triggering Airbyte Connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_ACTIVE:
+                (
+                    job_id,
+                    _,
+                ) = await airbyte_client.trigger_clear_connection(str_connection_id)
+
+                return AirbyteSync(
+                    airbyte_connection=self,
+                    job_id=job_id,
+                )
+
+            elif connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive"
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )
+
+    @sync_compatible
     async def reset_streams(self, streams: list[ResetStream]) -> AirbyteSync:
         """Trigger a reset of the defined Airbyte connection for the streams given.
 
