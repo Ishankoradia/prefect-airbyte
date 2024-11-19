@@ -85,7 +85,7 @@ async def reset_connection(
         from prefect import flow
         from prefect_airbyte.server import AirbyteServer
         from prefect_airbyte.connections import AirbyteConnection
-        from prefect_airbyte.flows import run_connection_sync
+        from prefect_airbyte.flows import reset_connection
 
         airbyte_server = AirbyteServer(
             server_host="localhost",
@@ -98,13 +98,13 @@ async def reset_connection(
         )
 
         @flow
-        def airbyte_sync_flow():
+        def airbyte_reset_flow():
             # do some things
 
-            airbyte_sync_result = run_connection_sync(
+            result = reset_connection(
                 airbyte_connection=connection
             )
-            print(airbyte_sync_result.records_synced)
+            print(result.job_id)
 
             # do some other things, like trigger DBT based on number of new raw records
         ```
@@ -122,6 +122,58 @@ async def reset_connection(
     await task(reset_job.wait_for_completion.aio)(reset_job)
 
     return await task(reset_job.fetch_result.aio)(reset_job)
+
+
+@flow
+async def clear_connection(
+    airbyte_connection: AirbyteConnection,
+) -> AirbyteSyncResult:
+    """A flow that triggers a clear of an Airbyte connection and waits for it to complete.
+
+    Args:
+        airbyte_connection: `AirbyteConnection` representing the Airbyte connection to
+            trigger and wait for completion of.
+
+    Returns:
+        `AirbyteSyncResult`: Model containing metadata for the `AirbyteSync`.
+
+    Example:
+        Define a flow that runs an Airbyte connection sync:
+        ```python
+        from prefect import flow
+        from prefect_airbyte.server import AirbyteServer
+        from prefect_airbyte.connections import AirbyteConnection
+        from prefect_airbyte.flows import clear_connection
+
+        airbyte_server = AirbyteServer(
+            server_host="localhost",
+            server_port=8000
+        )
+
+        connection = AirbyteConnection(
+            airbyte_server=airbyte_server,
+            connection_id="<YOUR-AIRBYTE-CONNECTION-UUID>"
+        )
+
+        @flow
+        def airbyte_clear_flow():
+            # do some things
+
+            result = clear_connection(
+                airbyte_connection=connection
+            )
+            print(result.job_id)
+
+            # do some other things, like trigger DBT based on number of new raw records
+        ```
+    """
+    clear_job: AirbyteSync = await task(airbyte_connection.clear.aio)(
+        airbyte_connection
+    )
+
+    await task(clear_job.wait_for_completion.aio)(clear_job)
+
+    return await task(clear_job.fetch_result.aio)(clear_job)
 
 
 @flow
@@ -163,6 +215,7 @@ async def reset_connection_streams(
             airbyte_sync_result = reset_connection_streams(
                 airbyte_connection=connection, streams=streams
             )
+            print(airbyte_sync_result.job_id)
 
         ```
     """
