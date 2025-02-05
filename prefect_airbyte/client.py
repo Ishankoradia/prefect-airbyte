@@ -284,6 +284,44 @@ class AirbyteClient:
 
             raise err.AirbyteServerNotHealthyException() from e
 
+    async def trigger_clear_streams_for_connection(
+        self, connection_id: str, streams: list[dict]
+    ) -> Tuple[str, str]:
+        """
+        Triggers a clear of the airbyte connection for the streams provided.
+
+        Args:
+            connection_id: ID of connection to sync.
+
+        Returns:
+            job_id: ID of the job that was triggered.
+            created_at: Datetime string of when the job was created.
+
+        """
+        get_connection_url = self.airbyte_base_url + "/connections/clear/stream"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "connectionId": connection_id,
+                    "streams": streams,
+                },
+            )
+            response.raise_for_status()
+            job = response.json()["job"]
+            job_id = job["id"]
+            job_created_at = job["createdAt"]
+            return job_id, job_created_at
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise err.ConnectionNotFoundException(
+                    f"Connection {connection_id} not found, please double "
+                    f"check the connection_id."
+                ) from e
+
+            raise err.AirbyteServerNotHealthyException() from e
+
     async def get_job_status(self, job_id: str) -> Tuple[str, int, int]:
         """
         Gets the status of an Airbyte connection sync job.

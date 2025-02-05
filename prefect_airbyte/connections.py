@@ -552,6 +552,56 @@ class AirbyteConnection(JobBlock):
                 )
 
     @sync_compatible
+    async def clear_streams(self, streams: list[ResetStream]) -> AirbyteSync:
+        """Trigger a clear of the defined Airbyte connection for the streams given.
+
+        Returns:
+            An `AirbyteSync` `JobRun` object representing the active reset job.
+
+        Raises:
+            AirbyteConnectionInactiveException: If the connection is inactive.
+            AirbyteConnectionDeprecatedException: If the connection is deprecated.
+        """
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Triggering clear for connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_ACTIVE:
+                (
+                    job_id,
+                    _,
+                ) = await airbyte_client.trigger_clear_streams_for_connection(
+                    str_connection_id, [dict(stream) for stream in streams]
+                )
+
+                return AirbyteSync(
+                    airbyte_connection=self,
+                    job_id=job_id,
+                )
+
+            elif connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive"
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )
+
+    @sync_compatible
     async def update_connection_catalog(
         self, catalog_diff: Dict[str, Any]
     ) -> list[str]:

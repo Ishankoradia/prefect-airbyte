@@ -230,13 +230,66 @@ async def reset_connection_streams(
 
 
 @flow
+async def clear_connection_streams(
+    airbyte_connection: AirbyteConnection, streams: list[ResetStream]
+) -> None:
+    """A flow that triggers a clear for the defined streams of an Airbyte connection and waits for it to complete.
+
+    Args:
+        airbyte_connection: `AirbyteConnection` representing the Airbyte connection.
+        streams: list[ResetStream] representing the streams that need to be reset
+
+
+    Returns:
+        None
+
+    Example:
+        Define a flow that runs an Airbyte connection sync:
+        ```python
+        from prefect import flow
+        from prefect_airbyte.server import AirbyteServer
+        from prefect_airbyte.connections import AirbyteConnection
+        from prefect_airbyte.flows import reset_connection_streams
+
+        airbyte_server = AirbyteServer(
+            server_host="localhost",
+            server_port=8000
+        )
+
+        connection = AirbyteConnection(
+            airbyte_server=airbyte_server,
+            connection_id="<YOUR-AIRBYTE-CONNECTION-UUID>"
+        )
+
+        @flow
+        def airbyte_reset_connection_streams_flow():
+            # do some things
+
+            airbyte_sync_result = reset_connection_streams(
+                airbyte_connection=connection, streams=streams
+            )
+            print(airbyte_sync_result.job_id)
+
+        ```
+    """
+
+    clear_job: AirbyteSync = await task(airbyte_connection.clear_streams.aio)(
+        airbyte_connection, streams
+    )
+
+    await task(clear_job.wait_for_completion.aio)(clear_job)
+
+    return await task(clear_job.fetch_result.aio)(clear_job)
+
+
+@flow
 async def update_connection_schema(
     airbyte_connection: AirbyteConnection, catalog_diff: dict
 ) -> None:
     """
     A flow that does the following
     1. Update the connection with new catalog
-    2. Reset the affected streams
+    2. Clear the affected streams
     3. Run a sync on the connection
 
     Args:
@@ -308,7 +361,7 @@ async def update_connection_schema(
     if len(affected_streams) > 0:
 
         # reset the affected streams
-        await reset_connection_streams(
+        await clear_connection_streams(
             airbyte_connection,
             streams=[
                 ResetStream(streamName=stream_name) for stream_name in affected_streams
