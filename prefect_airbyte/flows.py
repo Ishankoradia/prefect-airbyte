@@ -360,13 +360,14 @@ async def update_connection_schema(
 
     if len(affected_streams) > 0:
 
-        # reset the affected streams
-        await clear_connection_streams(
-            airbyte_connection,
-            streams=[
-                ResetStream(streamName=stream_name) for stream_name in affected_streams
-            ],
-        )
+        # reset the affected streams one by one
+        # doing it all at once clearly doesn't work; airbyte takes forever
+        # also in the airbyte UI, there is no option to reset all streams at once
+        for stream_name in affected_streams:
+            await clear_connection_streams(
+                airbyte_connection,
+                streams=[ResetStream(streamName=stream_name)],
+            )
 
         # run a sync on the connection
         await run_connection_sync(airbyte_connection)
