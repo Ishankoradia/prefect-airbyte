@@ -55,7 +55,7 @@ class AirbyteClient:
         self.logger = logger
         self.timeout = timeout
         self._client = httpx.AsyncClient(
-            base_url=self.airbyte_base_url, auth=self.auth, timeout=self.timeout
+            base_url=self.airbyte_base_url, auth=self.auth, timeout=100
         )
 
     async def check_health_status(self, client: httpx.AsyncClient) -> bool:
