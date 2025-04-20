@@ -212,7 +212,10 @@ class ResetStream(BaseModel):
     """Model representing a stream that needs to be reset"""
 
     streamName: str
-    streamNamespace: Optional[str]
+
+    # streamNamespace: Optional[str]
+    class Config:
+        extra = "allow"
 
 
 class AirbyteSync(JobRun):
