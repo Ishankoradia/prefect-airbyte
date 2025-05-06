@@ -1,6 +1,6 @@
 """Flows for interacting with Airbyte."""
 
-from prefect import flow, task, get_run_logger
+from prefect import flow, task
 
 from prefect_airbyte.connections import (
     AirbyteConnection,
@@ -353,13 +353,6 @@ async def update_connection_schema(
 
         ```
     """
-
-    logger = get_run_logger()
-
-    affected_streams = await task(airbyte_connection.update_connection_catalog.aio)(
+    await task(airbyte_connection.update_connection_catalog.aio)(
         airbyte_connection, catalog_diff
-    )
-
-    logger.info(
-        f"Updated connection with new catalog. Affected streams: {affected_streams}"
     )
