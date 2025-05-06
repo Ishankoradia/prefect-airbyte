@@ -289,8 +289,8 @@ async def update_connection_schema(
     """
     A flow that does the following
     1. Update the connection with new catalog
-    2. Clear the affected streams
-    3. Run a sync on the connection
+
+    It will not clear and resync the affected streams. This operation will have to be done manually now
 
     Args:
         airbyte_connection: `AirbyteConnection` representing the Airbyte connection.
@@ -306,7 +306,7 @@ async def update_connection_schema(
         from prefect import flow
         from prefect_airbyte.server import AirbyteServer
         from prefect_airbyte.connections import AirbyteConnection
-        from prefect_airbyte.flows import refresh_schema
+        from prefect_airbyte.flows import update_connection_schema
 
         airbyte_server = AirbyteServer(
             server_host="localhost",
@@ -347,27 +347,12 @@ async def update_connection_schema(
         def airbyte_refresh_schema_for_connection():
             # do some things
 
-            refresh_schema(
+            update_connection_schema(
                 airbyte_connection=connection, catalog_diff=catalog_diff
             )
 
         ```
     """
-
-    affected_streams = await task(airbyte_connection.update_connection_catalog.aio)(
+    await task(airbyte_connection.update_connection_catalog.aio)(
         airbyte_connection, catalog_diff
     )
-
-    if len(affected_streams) > 0:
-
-        # reset the affected streams one by one
-        # doing it all at once clearly doesn't work; airbyte takes forever
-        # also in the airbyte UI, there is no option to reset all streams at once
-        for stream_name in affected_streams:
-            await clear_connection_streams(
-                airbyte_connection,
-                streams=[ResetStream(streamName=stream_name)],
-            )
-
-        # run a sync on the connection
-        await run_connection_sync(airbyte_connection)
