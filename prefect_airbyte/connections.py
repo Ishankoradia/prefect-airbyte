@@ -730,3 +730,100 @@ class AirbyteConnection(JobBlock):
                 raise err.AirbyeConnectionDeprecatedException(
                     f"Connection {self.connection_id!r} is deprecated."
                 )
+
+    @sync_compatible
+    async def cancel_job(self, job_id: int) -> AirbyteSync:
+        """Cancel the given job id.
+
+        Args:
+            job_id: The job id to cancel.
+
+        Raises:
+            AirbyteConnectionInactiveException: If the connection is inactive.
+            AirbyteConnectionDeprecatedException: If the connection is deprecated.
+
+        Returns:
+            a job run object
+        """
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Cancelling Airbyte Connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_ACTIVE:
+                self.logger.info(
+                    f"Cancelling job {job_id} for connection {self.connection_id}"
+                )
+
+                (
+                    job_id,
+                    _,
+                ) = await airbyte_client.cancel_a_job(job_id)
+
+                return AirbyteSync(
+                    airbyte_connection=self,
+                    job_id=job_id,
+                )
+
+            elif connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive"
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )
+
+    @sync_compatible
+    async def get_running_jobs(self, job_type: str) -> list[dict[str, Any]]:
+        """Get the jobs for the given connection.
+
+        Args:
+            job_type: The job type to get.
+
+        Returns:
+            A list of jobs for the given connection.
+        """
+
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Getting jobs for Airbyte Connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_ACTIVE:
+                return await airbyte_client.get_jobs_for_connection(
+                    str_connection_id, config_types=[job_type], statuses=["running"]
+                )
+
+            elif connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive"
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )

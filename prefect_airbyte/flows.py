@@ -371,3 +371,70 @@ async def update_connection_schema(
 
         # run a sync on the connection
         await run_connection_sync(airbyte_connection)
+
+
+@flow
+async def cancel_connection_jobs(
+    airbyte_connection: AirbyteConnection, job_type: str
+) -> None:
+    """A flow that cancels running job(s) for an Airbyte connection.
+
+    job_type (config_type as airbyte calls it) can be one of the following:
+    - check_connection_source
+    - check_connection_destination
+    - discover_schema
+    - get_spec
+    - sync
+    - reset_connection
+    - refresh
+    - clear
+
+    Will cancel all jobs of the specified type for the connection.
+
+    Args:
+        airbyte_connection: `AirbyteConnection` representing the Airbyte connection.
+        job_id: the id of the job to be cancelled
+
+    Returns:
+        None
+
+    Example:
+        Define a flow that runs an Airbyte connection sync:
+        ```python
+        from prefect import flow
+        from prefect_airbyte.server import AirbyteServer
+        from prefect_airbyte.connections import AirbyteConnection
+        from prefect_airbyte.flows import cancel_connection_jobs
+
+        airbyte_server = AirbyteServer(
+            server_host="localhost",
+            server_port=8000
+        )
+
+        connection = AirbyteConnection(
+            airbyte_server=airbyte_server,
+            connection_id="<YOUR-AIRBYTE-CONNECTION-UUID>"
+        )
+
+        @flow
+        def airbyte_cancel_job_flow():
+            # do some things
+
+            cancel_connection_jobs(
+                airbyte_connection=connection, job_type="<YOUR-AIRBYTE-JOB-TYPE>"
+            )
+            print("Job cancelled")
+        ```
+    """
+    jobs = await task(airbyte_connection.get_running_jobs.aio)(
+        airbyte_connection, job_type
+    )
+
+    for job in jobs:
+        cancel_job: AirbyteSync = await task(airbyte_connection.cancel_job.aio)(
+            airbyte_connection, job["id"]
+        )
+
+        await task(cancel_job.wait_for_completion.aio)(cancel_job)
+
+        await task(cancel_job.fetch_result.aio)(cancel_job)

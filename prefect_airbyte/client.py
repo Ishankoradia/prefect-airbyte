@@ -457,6 +457,87 @@ class AirbyteClient:
 
             raise err.AirbyteServerNotHealthyException() from e
 
+    async def get_jobs_for_connection(
+        self,
+        connection_id: str,
+        config_types: list[str] = ["sync"],  # job_types
+        statuses: list[str] = ["running"],
+        limit: int = 10,
+        offset: int = 0,
+    ):
+        """
+        Get jobs for a connection
+        By default it gets the running jobs
+
+        Available statuses are:
+        - pending
+        - running
+        - incomplete
+        - failed
+        - succeeded
+        - cancelled
+
+        Available config types are:
+        - check_connection_source
+        - check_connection_destination
+        - discover_schema
+        - get_spec
+        - sync
+        - reset_connection
+        - refresh
+        - clear
+        """
+        get_connection_url = self.airbyte_base_url + "/web_backend/connections/get_jobs"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "configTypes": config_types,
+                    "configId": connection_id,
+                    "pagination": {"rowOffset": offset, "pageSize": limit},
+                    "statuses": statuses,
+                },
+            )
+            response.raise_for_status()
+            self.logger.info(
+                "Fetched connection jobs for connection ID: %s",
+                connection_id,
+            )
+            return response.json()["jobs"]
+        except httpx.HTTPStatusError as e:
+            raise err.AirbyteServerNotHealthyException(str(e)) from e
+
+    async def cancel_a_job(self, job_id: str) -> Dict[str, Any]:
+        """
+        Cancel a job for a connection
+        """
+        get_connection_url = self.airbyte_base_url + "/jobs/cancel"
+
+        try:
+            response = await self._client.post(
+                get_connection_url,
+                json={
+                    "jobId": job_id,
+                },
+            )
+            response.raise_for_status()
+            self.logger.info(
+                "Cancelled job ID: %s",
+                job_id,
+            )
+            job = response.json()["job"]
+            job_id = job["id"]
+            job_created_at = job["createdAt"]
+            return job_id, job_created_at
+        except httpx.HTTPStatusError as e:
+            raise err.AirbyteServerNotHealthyException(str(e)) from e
+        except Exception as e:
+            self.logger.error(e)
+            raise err.AirbyteServerNotHealthyException(
+                "Something went wrong while cancelling job"
+            ) from e
+
     async def create_client(self) -> httpx.AsyncClient:
         """Convencience method to create a new httpx.AsyncClient.
 
