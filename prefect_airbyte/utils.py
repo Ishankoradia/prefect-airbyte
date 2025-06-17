@@ -21,7 +21,7 @@ def sort_dict(d: Dict[str, Any]) -> Dict[str, Any]:
 async def post_dalgo_airbyte_webhook(job_id: int):
     """Post a webhook to the Dalgo API for an airbyte job."""
 
-    url = f"{os.getenv("DALGO_BACKEND_BASE_URI")}/webhooks/v1/airbyte_job/{job_id}"
+    url = f"{os.getenv('DALGO_BACKEND_BASE_URI')}/webhooks/v1/airbyte_job/{job_id}"
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
