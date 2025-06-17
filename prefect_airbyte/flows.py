@@ -8,6 +8,7 @@ from prefect_airbyte.connections import (
     AirbyteSync,
     ResetStream,
 )
+from prefect_airbyte.utils import post_dalgo_airbyte_webhook
 
 
 @flow
@@ -59,11 +60,23 @@ async def run_connection_sync(
     # a sync task within an async flow
     # see [this issue](https://github.com/PrefectHQ/prefect/issues/7551)
 
-    airbyte_sync = await task(airbyte_connection.trigger.aio)(airbyte_connection)
+    airbyte_sync: AirbyteSync = await task(airbyte_connection.trigger.aio)(
+        airbyte_connection
+    )
 
     await task(airbyte_sync.wait_for_completion.aio)(airbyte_sync)
 
-    return await task(airbyte_sync.fetch_result.aio)(airbyte_sync)
+    sync_result = await task(airbyte_sync.fetch_result.aio)(airbyte_sync)
+
+    try:
+        await post_dalgo_airbyte_webhook(airbyte_sync.job_id)
+    except Exception as e:
+        print(
+            f"Failed to post webhook for Airbyte job {airbyte_sync.job_id}: {e}. "
+            "This is not a blocking error, but you may want to investigate."
+        )
+
+    return sync_result
 
 
 @flow
