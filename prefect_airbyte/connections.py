@@ -247,9 +247,10 @@ class AirbyteSync(JobRun):
 
                 job_status = job_info["job"]["status"]
 
-                self._records_synced = job_info["attempts"][-1]["attempt"].get(
-                    "recordsSynced", 0
-                )
+                if job_info["attempts"]:
+                    self._records_synced = job_info["attempts"][-1]["attempt"].get(
+                        "recordsSynced", 0
+                    )
 
                 # pending┃running┃failed┃succeeded┃cancelled
                 if job_status == JOB_STATUS_SUCCEEDED:
