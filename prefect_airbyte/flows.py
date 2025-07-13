@@ -356,3 +356,53 @@ async def update_connection_schema(
     await task(airbyte_connection.update_connection_catalog.aio)(
         airbyte_connection, catalog_diff
     )
+
+
+@flow
+async def cancel_job(
+    airbyte_connection: AirbyteConnection, job_id: int
+) -> AirbyteSyncResult:
+    """A flow that cancels a running Airbyte job and waits for it to complete.
+
+    Args:
+        airbyte_connection: `AirbyteConnection` representing the Airbyte connection.
+        job_id: The ID of the Airbyte job to cancel.
+
+    Returns:
+        `AirbyteSyncResult`: Model containing metadata for the cancelled job.
+
+    Example:
+        Define a flow that cancels an Airbyte job:
+        ```python
+        from prefect import flow
+        from prefect_airbyte.server import AirbyteServer
+        from prefect_airbyte.connections import AirbyteConnection
+        from prefect_airbyte.flows import cancel_job
+
+        airbyte_server = AirbyteServer(
+            server_host="localhost",
+            server_port=8000
+        )
+
+        connection = AirbyteConnection(
+            airbyte_server=airbyte_server,
+            connection_id="<YOUR-AIRBYTE-CONNECTION-UUID>"
+        )
+
+        @flow
+        def cancel_airbyte_job_flow():
+            # Cancel a running job
+            result = cancel_job(
+                airbyte_connection=connection,
+                job_id=12345
+            )
+            print(f"Job {result.job_id} status: {result.job_status}")
+        ```
+    """
+    cancel_job_sync: AirbyteSync = await task(airbyte_connection.cancel_job.aio)(
+        airbyte_connection, job_id
+    )
+
+    await task(cancel_job_sync.wait_for_completion.aio)(cancel_job_sync)
+
+    return await task(cancel_job_sync.fetch_result.aio)(cancel_job_sync)

@@ -198,6 +198,37 @@ def airbyte_get_failed_job_status_response(airbyte_base_job_status_response) -> 
 
 
 @pytest.fixture
+def airbyte_get_cancelled_job_status_response(airbyte_base_job_status_response) -> dict:
+    airbyte_base_job_status_response["job"]["status"] = "cancelled"
+    airbyte_base_job_status_response["attempts"].append(
+        {
+            "attempt": {
+                "id": 0,
+                "status": "cancelled",
+                "createdAt": 0,
+                "updatedAt": 0,
+                "endedAt": 0,
+                "bytesSynced": 0,
+                "recordsSynced": 0,
+            }
+        }
+    )
+    return airbyte_base_job_status_response
+
+
+@pytest.fixture
+def airbyte_cancel_job_response() -> dict:
+    return {
+        "job": {
+            "id": 45,
+            "status": "cancelled",
+            "createdAt": 1650644844,
+            "updatedAt": 1650644844
+        }
+    }
+
+
+@pytest.fixture
 def airbyte_job_status_not_found_response():
     return {
         "id": "string",
@@ -414,6 +445,120 @@ def mock_successful_config_export_calls(
     respx_mock.post(url=f"{base_airbyte_url}/deployment/export/").mock(
         return_value=Response(200, content=airbyte_good_export_configuration_response)
     )
+
+
+@pytest.fixture
+def airbyte_get_running_job_status_response(airbyte_base_job_status_response) -> dict:
+    airbyte_base_job_status_response["job"]["status"] = "running"
+    airbyte_base_job_status_response["attempts"].append(
+        {
+            "attempt": {
+                "id": 0,
+                "status": "running",
+                "createdAt": 0,
+                "updatedAt": 0,
+                "endedAt": 0,
+                "bytesSynced": 0,
+                "recordsSynced": 0,
+            }
+        }
+    )
+    return airbyte_base_job_status_response
+
+
+@respx.mock(assert_all_called=True)
+@pytest.fixture
+def mock_successful_job_cancel_calls(
+    respx_mock,
+    base_airbyte_url,
+    airbyte_good_health_check_response,
+    airbyte_get_connection_response_json,
+    airbyte_cancel_job_response,
+    airbyte_get_running_job_status_response,
+    airbyte_get_cancelled_job_status_response,
+):
+    # health check: successful case
+    respx_mock.get(url=f"{base_airbyte_url}/health/").mock(
+        return_value=Response(200, json=airbyte_good_health_check_response)
+    )
+
+    # get connection status: active case
+    respx_mock.post(
+        url=f"{base_airbyte_url}/connections/get/",
+        json={"connectionId": airbyte_get_connection_response_json["connectionId"]},
+    ).mock(return_value=Response(200, json=airbyte_get_connection_response_json))
+
+    # get job status: returns running status first
+    respx_mock.post(
+        url=f"{base_airbyte_url}/jobs/get_without_logs/",
+        json={"id": str(airbyte_get_running_job_status_response["job"]["id"])},
+    ).mock(return_value=Response(200, json=airbyte_get_running_job_status_response))
+
+    # cancel job: successful case  
+    respx_mock.post(
+        url=f"{base_airbyte_url}/jobs/cancel/",
+        json={"id": str(airbyte_cancel_job_response["job"]["id"])},
+    ).mock(return_value=Response(200, json=airbyte_cancel_job_response))
+
+    # get job status: returns cancelled status after cancellation
+    respx_mock.post(
+        url=f"{base_airbyte_url}/jobs/get_without_logs/",
+        json={"id": str(airbyte_get_cancelled_job_status_response["job"]["id"])},
+    ).mock(return_value=Response(200, json=airbyte_get_cancelled_job_status_response))
+
+
+@respx.mock(assert_all_called=True)
+@pytest.fixture
+def mock_job_cancel_not_running_calls(
+    respx_mock,
+    base_airbyte_url,
+    airbyte_good_health_check_response,
+    airbyte_get_connection_response_json,
+    airbyte_get_good_job_status_response,
+):
+    # health check: successful case
+    respx_mock.get(url=f"{base_airbyte_url}/health/").mock(
+        return_value=Response(200, json=airbyte_good_health_check_response)
+    )
+
+    # get connection status: active case
+    respx_mock.post(
+        url=f"{base_airbyte_url}/connections/get/",
+        json={"connectionId": airbyte_get_connection_response_json["connectionId"]},
+    ).mock(return_value=Response(200, json=airbyte_get_connection_response_json))
+
+    # get job status: returns succeeded status (not running)
+    respx_mock.post(
+        url=f"{base_airbyte_url}/jobs/get_without_logs/",
+        json={"id": str(airbyte_get_good_job_status_response["job"]["id"])},
+    ).mock(return_value=Response(200, json=airbyte_get_good_job_status_response))
+
+
+@respx.mock(assert_all_called=True)
+@pytest.fixture
+def mock_job_cancel_not_found_calls(
+    respx_mock,
+    base_airbyte_url,
+    airbyte_good_health_check_response,
+    airbyte_get_connection_response_json,
+    airbyte_job_status_not_found_response,
+):
+    # health check: successful case
+    respx_mock.get(url=f"{base_airbyte_url}/health/").mock(
+        return_value=Response(200, json=airbyte_good_health_check_response)
+    )
+
+    # get connection status: active case
+    respx_mock.post(
+        url=f"{base_airbyte_url}/connections/get/",
+        json={"connectionId": airbyte_get_connection_response_json["connectionId"]},
+    ).mock(return_value=Response(200, json=airbyte_get_connection_response_json))
+
+    # get job status: job not found
+    respx_mock.post(
+        url=f"{base_airbyte_url}/jobs/get_without_logs/",
+        json={"id": "999"},
+    ).mock(return_value=Response(404, json=airbyte_job_status_not_found_response))
 
 
 @respx.mock(assert_all_called=True)

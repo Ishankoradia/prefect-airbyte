@@ -27,6 +27,7 @@ CONNECTION_STATUS_DEPRECATED = "deprecated"
 JOB_STATUS_CANCELLED = "cancelled"
 JOB_STATUS_FAILED = "failed"
 JOB_STATUS_PENDING = "pending"
+JOB_STATUS_RUNNING = "running"
 JOB_STATUS_SUCCEEDED = "succeeded"
 
 terminal_job_statuses = {
@@ -500,6 +501,70 @@ class AirbyteConnection(JobBlock):
                 raise err.AirbyeConnectionDeprecatedException(
                     f"Connection {self.connection_id!r} is deprecated."
                 )
+
+    @sync_compatible
+    async def cancel_job(self, job_id: int) -> AirbyteSync:
+        """Cancel a running Airbyte job.
+
+        Args:
+            job_id: The ID of the Airbyte job to cancel.
+
+        Returns:
+            An `AirbyteSync` `JobRun` object representing the job being cancelled.
+
+        Raises:
+            AirbyteConnectionInactiveException: If the connection is inactive.
+            AirbyteConnectionDeprecatedException: If the connection is deprecated.
+            JobNotFoundException: If the job is not found.
+            AirbyteSyncJobFailed: If the job is not in running state.
+        """
+        str_connection_id = str(self.connection_id)
+
+        async with self.airbyte_server.get_client(
+            logger=self.logger, timeout=self.timeout
+        ) as airbyte_client:
+
+            self.logger.info(
+                f"Canceling Airbyte job {job_id} for connection {self.connection_id}, "
+                f"in workspace at {self.airbyte_server.base_url!r}"
+            )
+
+            # Check connection status first
+            connection_status = await airbyte_client.get_connection_status(
+                str_connection_id
+            )
+
+            if connection_status == CONNECTION_STATUS_INACTIVE:
+                raise err.AirbyteConnectionInactiveException(
+                    f"Connection: {self.connection_id!r} is inactive. "
+                    f"Please enable the connection {self.connection_id!r} "
+                    "in your Airbyte instance."
+                )
+            elif connection_status == CONNECTION_STATUS_DEPRECATED:
+                raise err.AirbyeConnectionDeprecatedException(
+                    f"Connection {self.connection_id!r} is deprecated."
+                )
+
+            # Check if job exists and is running
+            job_info = await airbyte_client.get_job_info(str(job_id))
+            job_status = job_info["job"]["status"]
+
+            if job_status != JOB_STATUS_RUNNING:
+                raise err.AirbyteSyncJobFailed(
+                    f"Job {job_id} is in status '{job_status}' and cannot be cancelled. "
+                    f"Only running jobs can be cancelled."
+                )
+
+            # Trigger the cancel
+            (
+                cancel_job_id,
+                _,
+            ) = await airbyte_client.trigger_cancel_job(str(job_id))
+
+            return AirbyteSync(
+                airbyte_connection=self,
+                job_id=cancel_job_id,
+            )
 
     @sync_compatible
     async def reset_streams(self, streams: list[ResetStream]) -> AirbyteSync:

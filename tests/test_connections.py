@@ -113,3 +113,43 @@ async def test_airbyte_connection_instantiation(airbyte_server, connection_id):
     assert isinstance(connection, AirbyteConnection)
     assert connection.airbyte_server == airbyte_server
     assert str(connection.connection_id) == connection_id
+
+
+async def test_successful_cancel_job(
+    mock_successful_job_cancel_calls, airbyte_connection
+):
+    from prefect_airbyte.connections import AirbyteSync
+    from prefect.logging import disable_run_logger
+
+    job_id = 45
+
+    with disable_run_logger():
+        cancel_result = await airbyte_connection.cancel_job.fn(job_id)
+
+    assert isinstance(cancel_result, AirbyteSync)
+    assert cancel_result.job_id == job_id
+    assert cancel_result.airbyte_connection == airbyte_connection
+
+
+async def test_cancel_job_not_found(
+    mock_job_cancel_not_found_calls, airbyte_connection
+):
+    from prefect.logging import disable_run_logger
+
+    job_id = 999
+
+    with disable_run_logger():
+        with pytest.raises(err.JobNotFoundException):
+            await airbyte_connection.cancel_job.fn(job_id)
+
+
+async def test_cancel_job_not_running(
+    mock_job_cancel_not_running_calls, airbyte_connection
+):
+    from prefect.logging import disable_run_logger
+
+    job_id = 45
+
+    with disable_run_logger():
+        with pytest.raises(err.AirbyteSyncJobFailed):
+            await airbyte_connection.cancel_job.fn(job_id)
