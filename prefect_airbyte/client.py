@@ -396,6 +396,38 @@ class AirbyteClient:
             self.logger.error(e)
             raise Exception("Something went wrong while fetching job info") from e
 
+    async def trigger_cancel_job(self, job_id: str) -> Tuple[str, str]:
+        """
+        Triggers a cancel of a running Airbyte job.
+
+        Args:
+            job_id: The ID of the Airbyte job to cancel.
+
+        Returns:
+            job_id: ID of the job that was triggered for cancellation.
+            created_at: Datetime string of when the job was created.
+        """
+        cancel_job_url = self.airbyte_base_url + f"/jobs/cancel/"
+        self.logger.info(f"Triggering cancel for airbyte job with ID: {job_id}")
+        try:
+            response = await self._client.post(cancel_job_url, json={"id": job_id})
+            response.raise_for_status()
+
+            job_response = response.json()
+            job = job_response["job"]
+            job_id = job["id"]
+            job_created_at = job["createdAt"]
+            return job_id, job_created_at
+
+        except httpx.HTTPStatusError as e:
+            self.logger.error(e)
+            if e.response.status_code == 404:
+                raise err.JobNotFoundException(f"Job {job_id} not found.") from e
+            raise err.AirbyteServerNotHealthyException() from e
+        except Exception as e:
+            self.logger.error(e)
+            raise Exception("Something went wrong while canceling job") from e
+
     async def get_webbackend_connection(
         self, connection_id: str, refresh_catalog: bool
     ) -> Dict[str, Any]:

@@ -70,3 +70,76 @@ async def test_run_connection_sync_subflow_asynchronously(
     result = await airbyte_sync_sync_flow()
 
     assert result == expected_airbyte_sync_result
+
+
+# Add expected result for cancelled job
+expected_airbyte_cancel_result = AirbyteSyncResult(
+    created_at=1650644844,
+    job_status="cancelled",
+    job_id=45,
+    records_synced=0,
+    updated_at=1650644844,
+)
+
+
+async def test_cancel_job_standalone_success(
+    airbyte_server, airbyte_connection, mock_successful_job_cancel_calls
+):
+    from prefect_airbyte.flows import cancel_job
+
+    job_id = 45
+    result = await cancel_job(airbyte_connection=airbyte_connection, job_id=job_id)
+
+    assert result == expected_airbyte_cancel_result
+
+
+async def test_cancel_job_standalone_not_found(
+    airbyte_server, airbyte_connection, mock_job_cancel_not_found_calls
+):
+    from prefect_airbyte.flows import cancel_job
+    from prefect_airbyte.exceptions import JobNotFoundException
+
+    job_id = 999
+
+    with pytest.raises(JobNotFoundException):
+        await cancel_job(airbyte_connection=airbyte_connection, job_id=job_id)
+
+
+async def test_cancel_job_standalone_not_running(
+    airbyte_server, airbyte_connection, mock_job_cancel_not_running_calls
+):
+    from prefect_airbyte.flows import cancel_job
+    from prefect_airbyte.exceptions import AirbyteSyncJobFailed
+
+    job_id = 45
+
+    with pytest.raises(AirbyteSyncJobFailed):
+        await cancel_job(airbyte_connection=airbyte_connection, job_id=job_id)
+
+
+async def test_cancel_job_subflow_synchronously(
+    airbyte_server, airbyte_connection, mock_successful_job_cancel_calls
+):
+    from prefect_airbyte.flows import cancel_job
+
+    @flow
+    def airbyte_cancel_sync_flow():
+        return cancel_job(airbyte_connection=airbyte_connection, job_id=45)
+
+    result = airbyte_cancel_sync_flow()
+
+    assert result == expected_airbyte_cancel_result
+
+
+async def test_cancel_job_subflow_asynchronously(
+    airbyte_server, airbyte_connection, mock_successful_job_cancel_calls
+):
+    from prefect_airbyte.flows import cancel_job
+
+    @flow
+    async def airbyte_cancel_sync_flow():
+        return await cancel_job(airbyte_connection=airbyte_connection, job_id=45)
+
+    result = await airbyte_cancel_sync_flow()
+
+    assert result == expected_airbyte_cancel_result
