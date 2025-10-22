@@ -213,6 +213,7 @@ class ResetStream(BaseModel):
     """Model representing a stream that needs to be reset"""
 
     streamName: str
+    streamNamespace: str = None
 
     # streamNamespace: Optional[str]
     class Config:
@@ -592,12 +593,21 @@ class AirbyteConnection(JobBlock):
                 str_connection_id
             )
 
+            # prepare the dict for streams
+            # remove streamNamespace if it's None
+            streams = []
+            for stream in streams:
+                stream_dict = dict(stream)
+                if stream["streamNamespace"] is None:
+                    stream_dict.pop("streamNamespace", None)
+                streams.append(stream_dict)
+
             if connection_status == CONNECTION_STATUS_ACTIVE:
                 (
                     job_id,
                     _,
                 ) = await airbyte_client.trigger_reset_streams_for_connection(
-                    str_connection_id, [dict(stream) for stream in streams]
+                    str_connection_id, streams
                 )
 
                 return AirbyteSync(
