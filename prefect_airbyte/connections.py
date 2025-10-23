@@ -213,9 +213,8 @@ class ResetStream(BaseModel):
     """Model representing a stream that needs to be reset"""
 
     streamName: str
-    streamNamespace: str = None
+    streamNamespace: str | None = None
 
-    # streamNamespace: Optional[str]
     class Config:
         extra = "allow"
 
