@@ -651,7 +651,6 @@ class AirbyteConnection(JobBlock):
                 str_connection_id
             )
 
-            streams = []
             for stream in streams:
                 stream_dict = dict(stream)
                 if not stream["streamNamespace"]:
