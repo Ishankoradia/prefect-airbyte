@@ -651,18 +651,21 @@ class AirbyteConnection(JobBlock):
                 str_connection_id
             )
 
+            final_streams = []
             for stream in streams:
                 stream_dict = dict(stream)
-                if not stream["streamNamespace"]:
+                if not stream_dict["streamNamespace"]:
                     stream_dict.pop("streamNamespace", None)
-                streams.append(stream_dict)
+                final_streams.append(stream_dict)
+
+            self.logger.info(f"Prepared streams for clear: {final_streams}")
 
             if connection_status == CONNECTION_STATUS_ACTIVE:
                 (
                     job_id,
                     _,
                 ) = await airbyte_client.trigger_clear_streams_for_connection(
-                    str_connection_id, streams
+                    str_connection_id, final_streams
                 )
 
                 return AirbyteSync(
