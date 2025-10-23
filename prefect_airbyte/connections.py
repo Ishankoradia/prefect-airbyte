@@ -654,7 +654,7 @@ class AirbyteConnection(JobBlock):
             streams = []
             for stream in streams:
                 stream_dict = dict(stream)
-                if stream["streamNamespace"] is None:
+                if not stream["streamNamespace"]:
                     stream_dict.pop("streamNamespace", None)
                 streams.append(stream_dict)
 
