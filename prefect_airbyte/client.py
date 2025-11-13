@@ -147,6 +147,14 @@ class AirbyteClient:
             else:
                 raise err.AirbyteServerNotHealthyException() from e
 
+    @retry(
+        retry=retry_if_exception_type(
+            (httpx.HTTPStatusError, err.AirbyteServerNotHealthyException, Exception)
+        ),
+        wait=wait_exponential(multiplier=2, min=10, max=120),
+        stop=stop_after_attempt(3),
+        before=log_retry_attempt,
+    )
     async def trigger_manual_sync_connection(
         self, connection_id: str
     ) -> Tuple[str, str]:
