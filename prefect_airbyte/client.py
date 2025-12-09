@@ -220,6 +220,11 @@ class AirbyteClient:
                 f"Server error {e.response.status_code} when triggering sync for "
                 f"connection {connection_id}: {e.response.text}"
             ) from e
+        except Exception as e:
+            self.logger.error(e)
+            raise Exception(
+                f"Something went wrong while triggering sync for connection {connection_id}: {e}"
+            ) from e
 
     async def trigger_reset_connection(self, connection_id: str) -> Tuple[str, str]:
         """
