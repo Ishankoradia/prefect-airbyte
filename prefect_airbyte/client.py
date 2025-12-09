@@ -16,13 +16,29 @@ from tenacity import (
 from prefect_airbyte import exceptions as err
 
 
-def log_retry_attempt(retry_state: RetryCallState):
-    """Log the retry attempt number"""
-    logging.info(
-        "Retrying API call: attempt %s",
+def log_before_retry(retry_state: RetryCallState):
+    """Log before each retry attempt"""
+    client_instance = retry_state.args[0]
+    client_instance.logger.info(
+        "Starting attempt %s",
         retry_state.attempt_number,
     )
 
+
+def log_after_retry(retry_state: RetryCallState):
+    """Log the exception after a failed attempt"""
+    client_instance = retry_state.args[0]
+    
+    # Get the actual exception from the outcome
+    exception = None
+    if retry_state.outcome is not None and retry_state.outcome.failed:
+        exception = retry_state.outcome.exception()
+    
+    client_instance.logger.info(
+        "Attempt %s failed with exception: %s. Retrying...",
+        retry_state.attempt_number,
+        exception,
+    )
 
 class AirbyteClient:
     """
@@ -153,7 +169,8 @@ class AirbyteClient:
         ),
         wait=wait_exponential(multiplier=2, min=10, max=120),
         stop=stop_after_attempt(3),
-        before=log_retry_attempt,
+        before=log_before_retry,
+        after=log_after_retry,
     )
     async def trigger_manual_sync_connection(
         self, connection_id: str
@@ -183,11 +200,26 @@ class AirbyteClient:
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise err.ConnectionNotFoundException(
-                    f"Connection {connection_id} not found, please double "
-                    f"check the connection_id."
+                    f"Connection {connection_id} not found."
+                    f"Exited with error: {e.response.text}"
+                ) from e
+            
+            elif e.response.status_code == 409:
+                raise err.AirbyteSyncJobConflictException(
+                    f"Connection {connection_id} has already a sync running. "
+                    f"Exited with error: {e.response.text}"
+                ) from e
+            
+            elif e.response.status_code < 500 and e.response.status_code >= 400:
+                raise Exception(
+                    f"Client error {e.response.status_code} when triggering sync for "
+                    f"connection {connection_id}: {e.response.text}"
                 ) from e
 
-            raise err.AirbyteServerNotHealthyException() from e
+            raise err.AirbyteServerNotHealthyException(
+                f"Server error {e.response.status_code} when triggering sync for "
+                f"connection {connection_id}: {e.response.text}"
+            ) from e
 
     async def trigger_reset_connection(self, connection_id: str) -> Tuple[str, str]:
         """
@@ -375,7 +407,8 @@ class AirbyteClient:
         ),
         wait=wait_exponential(multiplier=2, max=120),
         stop=stop_after_attempt(8),
-        before=log_retry_attempt,
+        before=log_before_retry,
+        after=log_after_retry,
     )
     async def get_job_info(self, job_id: str) -> Dict[str, Any]:
         """
@@ -387,9 +420,10 @@ class AirbyteClient:
         Returns:
             Dict of the full API response for the given job ID.
         """
-        get_connection_url = self.airbyte_base_url + "/jobs/get_without_logs/"
-        self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
         try:
+            get_connection_url = self.airbyte_base_url + "/jobs/get_without_logs/"
+            self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
+
             response = await self._client.post(get_connection_url, json={"id": job_id})
             response.raise_for_status()
 
@@ -397,12 +431,28 @@ class AirbyteClient:
 
         except httpx.HTTPStatusError as e:
             self.logger.error(e)
+            
             if e.response.status_code == 404:
-                raise err.JobNotFoundException(f"Job {job_id} not found.") from e
-            raise err.AirbyteServerNotHealthyException() from e
+                raise err.JobNotFoundException(
+                    f"Job {job_id} not found."
+
+                ) from e
+            
+            elif e.response.status_code < 500 and e.response.status_code >= 400:
+                raise Exception(
+                    f"Client error {e.response.status_code} when fetching job info "
+                    f"for job ID {job_id}: {e.response.text}"
+                ) from e
+            
+            raise err.AirbyteServerNotHealthyException(
+                f"Failed to fetch job info for job ID {job_id}."
+                f" Exited with error: {e.response.text} and status code {e.response.status_code}"
+            ) from e
         except Exception as e:
             self.logger.error(e)
-            raise Exception("Something went wrong while fetching job info") from e
+            raise Exception(
+                f"Something went wrong while fetching job info for job ID {job_id}: {e}"
+            ) from e
 
     async def trigger_cancel_job(self, job_id: str) -> Tuple[str, str]:
         """
