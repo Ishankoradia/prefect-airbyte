@@ -20,7 +20,7 @@ def log_before_retry(retry_state: RetryCallState):
     """Log before each retry attempt"""
     client_instance = retry_state.args[0]
     client_instance.logger.info(
-        "Starting attempt %s",
+        "Starting tenacity attempt %s",
         retry_state.attempt_number,
     )
 
