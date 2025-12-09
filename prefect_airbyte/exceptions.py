@@ -6,6 +6,10 @@ class ConnectionNotFoundException(Exception):
     Raises when a requested Airbyte connection cannot be found.
     """
 
+class AirbyteSyncJobConflictException(Exception):
+    """
+    Raises when there is a conflict with the requested connection to run a sync job.
+    """
 
 class AirbyteServerNotHealthyException(Exception):
     """
