@@ -192,7 +192,7 @@ class AirbyteClient:
 
         try:
             response = await self._client.post(
-                jobs_url, json={"jobType": "sync"}
+                jobs_url, json={"jobType": "sync", "connectionId": connection_id}
             )
             response.raise_for_status()
             job = response.json()
