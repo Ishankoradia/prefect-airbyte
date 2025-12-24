@@ -148,10 +148,7 @@ async def trigger_sync(
 
         if connection_status == CONNECTION_STATUS_ACTIVE:
             # Trigger manual sync on the Connection ...
-            (
-                job_id,
-                job_created_at,
-            ) = await airbyte_client.trigger_manual_sync_connection(connection_id)
+            job_id = await airbyte_client.trigger_manual_sync_connection(connection_id)
 
             job_status = JOB_STATUS_PENDING
 
@@ -246,9 +243,9 @@ class AirbyteSync(JobRun):
 
                 job_info = await airbyte_client.get_job_info(self.job_id)
 
-                job_status = job_info["job"]["status"]
+                job_status = job_info["status"]
 
-                if job_info["attempts"]:
+                if "attempts" in job_info and job_info["attempts"]:
                     self._records_synced = job_info["attempts"][-1]["attempt"].get(
                         "recordsSynced", 0
                     )
@@ -278,16 +275,14 @@ class AirbyteSync(JobRun):
         ) as airbyte_client:
             job_info = await airbyte_client.get_job_info(self.job_id)
 
-            job_status = job_info["job"]["status"]
-            job_created_at = job_info["job"]["createdAt"]
-            job_updated_at = job_info["job"]["updatedAt"]
+            job_status = job_info["status"]
 
             return AirbyteSyncResult(
-                created_at=job_created_at,
+                created_at=datetime.now(), # the new jobs public api does not return created_at
                 job_id=self.job_id,
                 job_status=job_status,
                 records_synced=self._records_synced,
-                updated_at=job_updated_at,
+                updated_at=datetime.now(), # the new jobs public api does not return updated_at
             )
 
 
@@ -383,10 +378,7 @@ class AirbyteConnection(JobBlock):
             )
 
             if connection_status == CONNECTION_STATUS_ACTIVE:
-                (
-                    job_id,
-                    _,
-                ) = await airbyte_client.trigger_manual_sync_connection(
+                job_id = await airbyte_client.trigger_manual_sync_connection(
                     str_connection_id
                 )
 
@@ -547,7 +539,7 @@ class AirbyteConnection(JobBlock):
 
             # Check if job exists and is running
             job_info = await airbyte_client.get_job_info(str(job_id))
-            job_status = job_info["job"]["status"]
+            job_status = job_info["status"]
 
             if job_status != JOB_STATUS_RUNNING:
                 raise err.AirbyteSyncJobFailed(

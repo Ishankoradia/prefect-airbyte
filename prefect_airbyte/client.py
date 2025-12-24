@@ -60,6 +60,7 @@ class AirbyteClient:
         self,
         logger: logging.Logger,
         airbyte_base_url: str = "http://localhost:8000/api/v1",
+        airbyte_public_api_base_url: str = "http://localhost:8000/api/public/v1",
         auth: Tuple[str, str] = ("airbyte", "password"),
         timeout: int = 5,
     ):
@@ -67,6 +68,7 @@ class AirbyteClient:
         self._started = False
 
         self.airbyte_base_url = airbyte_base_url
+        self.airbyte_public_api_base_url = airbyte_public_api_base_url
         self.auth = auth
         self.logger = logger
         self.timeout = timeout
@@ -174,7 +176,7 @@ class AirbyteClient:
     )
     async def trigger_manual_sync_connection(
         self, connection_id: str
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
         Triggers a manual sync of the connection.
 
@@ -183,20 +185,19 @@ class AirbyteClient:
 
         Returns:
             job_id: ID of the job that was triggered.
-            created_at: Datetime string of when the job was created.
+            created_at: Datetime string of when the job was created
 
         """
-        get_connection_url = self.airbyte_base_url + "/connections/sync/"
+        jobs_url = self.airbyte_public_api_base_url + "/jobs"
 
         try:
             response = await self._client.post(
-                get_connection_url, json={"connectionId": connection_id}
+                jobs_url, json={"jobType": "sync"}
             )
             response.raise_for_status()
-            job = response.json()["job"]
-            job_id = job["id"]
-            job_created_at = job["createdAt"]
-            return job_id, job_created_at
+            job = response.json()
+            job_id = job["jobId"]
+            return job_id
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise err.ConnectionNotFoundException(
@@ -426,10 +427,10 @@ class AirbyteClient:
             Dict of the full API response for the given job ID.
         """
         try:
-            get_connection_url = self.airbyte_base_url + "/jobs/get_without_logs/"
+            get_job_url = self.airbyte_public_api_base_url + f"/jobs/{job_id}"
             self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
 
-            response = await self._client.post(get_connection_url, json={"id": job_id})
+            response = await self._client.get(get_job_url)
             response.raise_for_status()
 
             return response.json()

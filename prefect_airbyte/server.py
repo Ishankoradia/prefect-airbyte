@@ -73,6 +73,14 @@ class AirbyteServer(Block):
         return (
             f"{protocol}://{self.server_host}:{self.server_port}/api/{self.api_version}"
         )
+    
+    @property
+    def airbyte_public_api_base_url(self) -> str:
+        """Property containing the base URL for the Airbyte public API."""
+        protocol = "https" if self.use_ssl else "http"
+        return (
+            f"{protocol}://{self.server_host}:{self.server_port}/api/public/{self.api_version}"
+        )
 
     def get_client(self, logger: Logger, timeout: int = 10) -> AirbyteClient:
         """Returns an `AirbyteClient` instance for interacting with the Airbyte API.
