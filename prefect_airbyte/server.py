@@ -95,6 +95,7 @@ class AirbyteServer(Block):
         return AirbyteClient(
             logger=logger,
             airbyte_base_url=self.base_url,
+            airbyte_public_api_base_url=self.airbyte_public_api_base_url,
             auth=(self.username, self.password.get_secret_value()),
             timeout=timeout,
         )
