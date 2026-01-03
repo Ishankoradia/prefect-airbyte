@@ -75,6 +75,11 @@ class AirbyteClient:
         self._client = httpx.AsyncClient(
             base_url=self.airbyte_base_url, auth=self.auth, timeout=self.timeout
         )
+        self._public_client = httpx.AsyncClient(
+            base_url=self.airbyte_public_api_base_url,
+            auth=self.auth,
+            timeout=self.timeout
+        )
 
     async def check_health_status(self, client: httpx.AsyncClient) -> bool:
         """
@@ -191,7 +196,7 @@ class AirbyteClient:
         jobs_url = self.airbyte_public_api_base_url + "/jobs"
 
         try:
-            response = await self._client.post(
+            response = await self._public_client.post(
                 jobs_url, json={"jobType": "sync", "connectionId": connection_id}
             )
             response.raise_for_status()
@@ -430,7 +435,7 @@ class AirbyteClient:
             get_job_url = self.airbyte_public_api_base_url + f"/jobs/{job_id}"
             self.logger.info(f"Fetching airbyte job info for job ID: {job_id}")
 
-            response = await self._client.get(get_job_url)
+            response = await self._public_client.get(get_job_url)
             response.raise_for_status()
 
             return response.json()
