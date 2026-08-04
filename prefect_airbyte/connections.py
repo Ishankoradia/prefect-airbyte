@@ -296,6 +296,8 @@ class AirbyteConnection(JobBlock):
         poll_interval_s: Time in seconds between status checks of the Airbyte sync job.
         status_updates: Whether to log job status on each poll of the Airbyte sync job.
         timeout: Timeout in seconds for requests made by `httpx.AsyncClient`.
+        extra: Free-form dict for downstream consumers to attach metadata
+            to a connection block (e.g. post-sync operations to run after a sync).
 
     Examples:
         Load an existing `AirbyteConnection` block:
@@ -349,6 +351,14 @@ class AirbyteConnection(JobBlock):
     timeout: int = Field(
         default=5,
         description="Timeout in seconds for requests made by httpx.AsyncClient.",
+    )
+
+    extra: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form dict for downstream consumers to attach metadata to a "
+            "connection block (e.g. post-sync operations to run after a sync)."
+        ),
     )
 
     @sync_compatible
